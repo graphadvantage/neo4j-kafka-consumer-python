@@ -4,17 +4,41 @@
 
 ## Introduction
 
+Let's imagine we're a big film studio that's just released an awesome new movie for distribution. We want to capture the daily box office receipts for 150,000 locations where our movie is being shown.
 
-using the confluent-python
-using pykafka
-using apoc
+We have a Neo4j graph that represents the hierarchy of Cinema locations for each of the many distributors we work with.  Each (:Cinema) node has an (:Account) node. We want to update the (:Account) node by attaching a (:DailyBoxOffice) node that stores the daily revenue.
 
+The conventional way to perform updates would be use LOAD CSV or perhaps pull data from an API.
 
+In this Gist, I'll demonstrate how to use Apache Kafka to stream continuous message updates to our Neo4j Cinema graph using the Bolt driver.
 
-Credits:
-Activision analysis of Kafka clients
-MF Kilgore
-Michael Hunger
+### Kafka Distributed Streaming Platform
+
+https://kafka.apache.org/
+
+Kakfa allows you to create a resilient messaging service that is fault-tolerant, scalable, and features massively parallel distributed processing.
+
+Kafka was originally developed at LinkedIn, and is becoming widely adopted because it excels at moving large amounts of data quickly across the enterprise.
+
+Using Kafka, LinkedIn has ingested over a trillion messages per day, while Netflix reports ingesting over 500B messages per day on AWS.
+
+https://techbeacon.com/what-apache-kafka-why-it-so-popular-should-you-use-it
+
+The core of Kafka is the message log, which is essentially a time-dependent data table.  Messages are identified only by their offset in the log, and the log represents a running record of events published by source systems. Applications can subscribe to message streams, allowing for loosely coupled, flexible architectures.
+
+In a production system, the Kafka producers and consumers would be running continuously, with the producers polling for changes in the source data, and the consumers polling to see if there are new messages in the Kafka log for updates.
+
+There are many common scenarios where the lowest possible latency between source systems and Neo4j is desirable (e.g. recommendations, e-commerce, fraud detection, access control, supply chain).  Kafka + Neo4j is a great fit for these use cases.
+
+### Neo4j Kafka Demo
+
+In this demo, we'll spin up a Kafka instance on your local machine.  We'll then use a simple producer client to publish messages to Kafka (mocking an ETL from a source system). Next we'll use a simple consumer to subscribe to Kakfa and send batched message updates to Neo4j using the high-speed Bolt protocol.
+
+The confluent-kafka client is currently the fastest python client available, per recent benchmarking by the Activision data sciences team:
+
+http://activisiongamescience.github.io/2016/06/15/Kafka-Client-Benchmarking/
+
+I've used the Activision benchmarking script as the framework for this demo -- the main modifications I've made are to generate more realistic messages in the Kafak producer, and integrate the Bolt driver with the Kafka consumer.
 
 
 # Running Kafka on localhost
@@ -157,15 +181,9 @@ There may be a short delay until the server is ready.
 
 # Let's do this!
 
-We are going to use Kafka to produce and consume messages.  Typically, there would be a source data repository that the Kafka producer would interrogate and then pass resulting messages to the Kafka brokers.  For simplicity, we are going to mock this  part using a simple producer that uses a function to generate messages.
+Let's start by making the Cinema graph. You'll need to start with a new, blank Neo4j database.
 
-Once the messages are produced, we'll use a Kafka consumer to pull down the messages, batch them up and pass them to Neo4j to update the graph.  In production system, the producer and consumer would be running continuously, with the producer polling for changes in the source data and the consumer polling to see if there are new messages in queue for updates.
-
-Let's start by making the graph. You'll need to start with a new, blank Neo4j database.
-
-Keeping with the Neo4j Movie theme, let's imagine we're a movie studio that's just released a movie for distribution. We want to know, in real-time, the daily box office receipts for the 150,000 locations where our movie is being shown. Our graph has represents the hierarchy of Cinema locations for each distributor.  Each Cinema has an Account, and we need to update the Account by adding a DailyBoxOffice node, one for each day. Each (:Cinema) has an cinemaId which is the same as the (:Account) accountId.
-
-To achieve good performance we'll set constraints and indexes on all id fields we'll use for matching update records.
+To achieve good performance, we'll set constraints and indexes on all id fields we'll use for matching update records.
 
 ```
 # Make sure apoc procedures are installed in Neo4j plugins folder
@@ -398,7 +416,7 @@ def confluent_kafka_producer_performance():
 
 ```
 
-## Run Producer
+## Run the Producer
 
 So now we can run the producer (wrapped in the timer function)
 
@@ -618,7 +636,7 @@ def confluent_kafka_consumer_performance():
         return consumer_timing
 ```
 
-## Run Consumer, Update Neo4j Graph in Batches
+## Run the Consumer, Update Neo4j
 
 Executing the consumer script updates the graph:
 
