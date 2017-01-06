@@ -468,7 +468,7 @@ There are 150,000 messages waiting in queue to be consumed.
 ```
 
 
-## Kafka Message Consumer using Confluent_Kafka, with Neo4j BOLT Protocol Connector
+## Kafka Message Consumer using Confluent_Kafka and Neo4j BOLT Protocol
 
 Now we are ready to update our Cinema graph.
 
