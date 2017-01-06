@@ -4,9 +4,12 @@
 
 ## Introduction
 
-Let's imagine we're a big film studio that's just released an awesome new movie for distribution. We want to capture the daily box office receipts for 150,000 locations where our movie is being shown.
+Let's imagine we're a big film studio that's just released an awesome new movie for distribution. We want to ingest the daily box office receipts for 150,000 locations where our movie is being shown.
 
 We have a Neo4j graph that represents the hierarchy of Cinema locations for each of the many distributors we work with.  Each (:Cinema) node has an (:Account) node. We want to update the (:Account) node by attaching a (:DailyBoxOffice) node that stores the daily revenue.
+
+<img width="888" alt="cinema" src="https://cloud.githubusercontent.com/assets/5991751/21710956/d2642bbe-d3a0-11e6-8706-7d7a145a97a1.png">
+
 
 The conventional way to perform updates would be use LOAD CSV or perhaps pull data from an API.
 
@@ -21,6 +24,9 @@ Kakfa allows you to create a resilient messaging service that is fault-tolerant,
 Kafka was originally developed at LinkedIn, and is becoming widely adopted because it excels at moving large amounts of data quickly across the enterprise.
 
 Using Kafka, LinkedIn has ingested over a trillion messages per day, while Netflix reports ingesting over 500B messages per day on AWS.
+
+<img width="888" alt="netflix" src = "https://cloud.githubusercontent.com/assets/5991751/21710643/f24c3cac-d39e-11e6-8372-5b9cefb596e5.png">
+
 
 https://techbeacon.com/what-apache-kafka-why-it-so-popular-should-you-use-it
 
@@ -528,7 +534,7 @@ def confluent_kafka_consume_batch(consumer, batch_size):
 
 ```
 
-The `confluent_kafka_consumer_performance()` function is just a wrapper for the consumer, which iterates through the required number of batches, and with each iteration opens a new Bolt session and transaction, and passes the batch list as a parameter to the update query.  I UNWIND the list as rows, and then use the indexed ids to efficiently MATCH and MERGE for the cartesian updates.  The Bolt transaction is committed, and the result consumed (and in case you were wondering, the UWIND list  as a passed parameter is a neat trick from Michael Hunger).
+The `confluent_kafka_consumer_performance()` function is just a wrapper for the consumer, which iterates through the required number of batches, and with each iteration opens a new Bolt session and transaction, and passes the batch list as a parameter to the update query.  We UNWIND the list as rows, and then use the indexed ids to efficiently MATCH and MERGE for the cartesian updates.  The Bolt transaction is committed, and the result consumed (and in case you were wondering, the UNWIND list  as a passed parameter is a neat trick from Michael Hunger).
 
 Once all the batches are consumed, the consumer is closed and the throughput computed.
 
