@@ -44,7 +44,7 @@ The confluent-kafka client is currently the fastest python client available, per
 
 http://activisiongamescience.github.io/2016/06/15/Kafka-Client-Benchmarking/
 
-I've used the Activision benchmarking script as the framework for this demo -- the main modifications I've made are to generate more realistic messages in the Kafak producer, and integrate the Bolt driver with the Kafka consumer.
+I've used the Activision benchmarking script as the framework for this demo -- the main modifications I've made are to generate more realistic messages in the Kafka producer, and integrate the Bolt driver with the Kafka consumer.
 
 
 # Running Kafka on localhost
