@@ -1,31 +1,25 @@
 ##Neo4j GraphGist - Enterprise Architectures: Real-time Graph Updates using Kafka Messaging
 
-# Neo4j Use Case: Low Latency Graph Analytics & OLTP
+# Neo4j Use Case: Low Latency Graph Analytics & OLTP - Update 1M Nodes in 90 secs with Kafka and Neo4j Bolt
 
 ## Introduction
 
-Let's imagine we're operating a service called MovieFriends that features a social network of 1M users who rent streaming movies.   Our goal is to ingest an update of daily charges for each user.  We have a Neo4j social graph of User nodes, and we want to append a DailyCharge node to each User node.
+A recent [Neo4j whitepaper](https://neo4j.com/blog/oracle-rdbms-neo4j-fully-sync-data/) describes how Monsanto is performing real-time updates on a 600M node Neo4j graph using Kafka to consume data extracted from a large Oracle Exadata instance.
 
-<img width="888" alt="cinema" src="https://cloud.githubusercontent.com/assets/5991751/21710956/d2642bbe-d3a0-11e6-8706-7d7a145a97a1.png">
+This modern data architecture combines a fast, scalable messaging platform (Kafka) for low latency data provisioning and an enterprise graph database (Neo4j) for high performance, in-memory analytics & OLTP - creating new and powerful real-time graph analytics capabilities for your enterprise applications.
 
-The conventional way to perform updates would be use LOAD CSV or perhaps pull data from an API.
+In this Gist, we'll see how Apache Kafka can stream 1M messages to update a large Neo4j graph.
 
-In this Gist, I'll demonstrate how to use Apache Kafka to stream message updates to our Neo4j Cinema graph using the Bolt driver.
 
 ### Kafka Distributed Streaming Platform
 
-https://kafka.apache.org/
-
-Kakfa allows you to create a resilient messaging service that is fault-tolerant, scalable, and features massively parallel distributed processing.
+[Kakfa](https://kafka.apache.org/) allows you to create a messaging service that is fault-tolerant, scalable, and features massively parallel distributed processing.
 
 Kafka was originally developed at LinkedIn, and is becoming widely adopted because it excels at moving large amounts of data quickly across the enterprise.
 
-Using Kafka, LinkedIn has ingested over a trillion messages per day, while Netflix reports ingesting over 500B messages per day on AWS.
+[Using Kafka](https://techbeacon.com/what-apache-kafka-why-it-so-popular-should-you-use-it), LinkedIn has ingested over a trillion messages per day, while Netflix reports ingesting over 500B messages per day on AWS.
 
 <img width="888" alt="netflix" src = "https://cloud.githubusercontent.com/assets/5991751/21710643/f24c3cac-d39e-11e6-8372-5b9cefb596e5.png">
-
-
-https://techbeacon.com/what-apache-kafka-why-it-so-popular-should-you-use-it
 
 The core of Kafka is the message log, which is essentially a time-dependent data table.  Messages are identified only by their offset in the log, and the log represents a running record of events published by source systems. Applications can subscribe to message streams, allowing for loosely coupled, flexible architectures.
 
@@ -33,18 +27,28 @@ In a production system, the Kafka producers and consumers would be running conti
 
 There are many common scenarios where the lowest possible latency between source systems and Neo4j is desirable (e.g. recommendations, e-commerce, fraud detection, access control, supply chain).  Kafka + Neo4j is a great fit for these use cases.
 
+
 ### Neo4j Kafka Demo
 
-In this demo, we'll spin up a Kafka instance on your local machine.  We'll then use a simple producer client to publish messages to Kafka (mocking an ETL from a source system). Next we'll use a simple consumer to subscribe to Kakfa and send batched message updates to Neo4j using the high-speed Bolt protocol.
+Let's imagine we're operating a service called MovieFriends that features a social network of 1M users who rent streaming movies.   Our goal is to ingest an update of daily charges for each user.  We have a Neo4j social graph of User nodes, and we want to append a DailyCharge node to each User node.
 
-The confluent-kafka client is currently the fastest python client available, per recent benchmarking by the Activision data sciences team:
+<img width="888" alt="moviefriends" src="https://cloud.githubusercontent.com/assets/5991751/21914059/86fc04fe-d8e5-11e6-8bdf-60aa6be1b7de.png">
 
-http://activisiongamescience.github.io/2016/06/15/Kafka-Client-Benchmarking/
+We'll setup Kafka & Neo4j, create a 1M node Neo4j graph, produce a 1M messages in just a few seconds, and then consume these messages as batch updates to our graph.
 
-I've used the Activision benchmarking script as the framework for this demo -- the main modifications I've made are to generate more realistic messages in the Kafka producer, and integrate the Bolt driver with the Kafka consumer.
+  * We'll set up Kafka and Neo4j instances on your local machine (about an hour)
+  * Next, we'll use a simple producer client to publish messages to Kafka, mocking an extract from a source system (5 secs)
+  * Finally, we'll use a simple consumer to subscribe to Kakfa and send 1M batched messages as updates to Neo4j using the high-speed Bolt protocol (90 secs)
+
+The confluent-kafka client is currently the fastest python client available, per [recent benchmarking](http://activisiongamescience.github.io/2016/06/15/Kafka-Client-Benchmarking/) by the Activision data sciences team.
+
+I've used the Activision benchmarking script as the framework for this demo -- the main modifications I've made are to generate more realistic messages in the Kafak producer, and integrate the Bolt driver with the Kafka consumer.
 
 
-# PART 1: Setting up Kafka and Neo4j
+---
+
+
+## PART 1: Setting up Kafka and Neo4j
 
 The easiest way to get started with Kafka is to follow the directions provided on the Confluent Quickstart for setting up a single instance Kafka server.
 
@@ -92,7 +96,8 @@ http://docs.confluent.io/3.1.1/quickstart.html#quickstart
 When you are done, shut down all of the services in the reverse order that you started them.
 
 
-# Neo4j Kafka Demo Dependencies
+### Neo4j Kafka Demo Dependencies
+
 
 ### Step 1. Start Zookeeper and Kafka
 
@@ -117,7 +122,10 @@ $ ./bin/kafka-topics --create --zookeeper localhost:2181 --replication-factor 1 
 
 We'll create another topic later inside the script.
 
+
 ### Step 2. Install Python dependencies.
+
+There are three dependencies [confluent-python](https://github.com/confluentinc/confluent-kafka-python), [pykafka](https://github.com/Parsely/pykafka), and [neo4j-driver](https://github.com/neo4j/neo4j-python-driver).
 
 You'll need to be running Python 3.5 and Jupyter if you want to run the notebook.
 
@@ -130,14 +138,8 @@ $ pip install neo4j-driver
 
 ```
 
-https://github.com/confluentinc/confluent-kafka-python
-
-https://github.com/Parsely/pykafka
-
-https://github.com/neo4j/neo4j-python-driver
-
-Note on confluent-kafka installation: This has a dependency on librdkafka, and will fail if it can't find it. You can install librdkafka into your python home from source, using the configure command.  
-I use Anaconda:
+*Note on confluent-kafka: This has a dependency on librdkafka, and will complaing if it can't find it. You can install librdkafka into your python home from source, using the configure command.  
+(I use Anaconda python, so I put it there)*
 
 ```
 librdkafka-master $ ./configure --prefix=/Users/michael/anaconda
@@ -152,7 +154,7 @@ librdkafka-master $ pip install confluent-kafka
 
 I'm using Neo4j 3.1 released in Dec 2016.  If you haven't seen this latest version, it's really worth checking out, lots of new enterprise features.  APOC is a huge collection of really useful Neo4j utilities, we'll use some here.
 
-You can get Neo4j here, get the Enterprise versions.
+You can get Neo4j here, get the Enterprise versions (so you can use plugins).
 
 https://neo4j.com/download/
 
@@ -173,7 +175,7 @@ Use this command in the Neo4j browser to get the password prompts:
 :server change-password
 ```
 
-Now shutdown Neo4j and install the APOC package .jar file in the neo4j /plugins folder
+Now shutdown Neo4j and install the APOC package .jar file in the neo4j /plugins folder.
 
 ```
 $ ./bin/neo4j stop
@@ -194,7 +196,11 @@ There may be a short delay until the server is ready.
 
 ```
 
-# PART 2:  CREATING DATA
+
+---
+
+
+## PART 2:  Creating the Neo4j Graph Database and Kafka Messages
 
 Let's start by making the MovieFriends graph. You'll need to start with a new, blank Neo4j database.
 
@@ -297,7 +303,8 @@ You should see this output:
 
 ```
 
-## Initialization
+
+### Initialization
 
 Now that we've built the graph, let's update it.  The first task is to generate the messages we'll need (pretending that these have been extracted from various source systems as noted above).
 
@@ -365,7 +372,8 @@ Message size (bytes): 30
 
 ```
 
-## Kafka Message Producer using Confluent_Kafka Client
+
+### Kafka Message Producer using Confluent_Kafka Client
 
 This defines the producer, and you can see that all we are really doing here is invoking the generate_message() function in a loop. This creates a bunch of messages that are passed to the Kafka broker.
 
@@ -407,7 +415,8 @@ def confluent_kafka_producer_performance():
 
 ```
 
-## Run the Producer
+
+### Run the Producer
 
 So now we can run the producer (wrapped in the timer function)
 
@@ -417,19 +426,18 @@ calculate_thoughput(producer_timings['confluent_kafka_producer'])
 
 ```
 
-We see 150,000 message produced in 1.5 seconds, almost 100K messages per sec.
-
-Kafka is fast, even on my laptop....
+We see 1M message produced in 5 seconds, about 200K messages per sec (on my laptop).
 
 ```
 BufferErrors: 0
-Processed 1000000 messsages in 10.08 seconds
-2.84 MB/s
-99196.86 Msgs/s
+Processed 1000000 messsages in 5.06 seconds
+5.66 MB/s
+197728.85 Msgs/s
 
 ```
 
-## Validate Produced Messages by Inspecting Offsets
+
+### Validate Produced Messages by Inspecting Offsets
 
 So what did we get? We can use the pykafka client to easily check the earliest and latest offsets and make sure everything looks good.
 
@@ -451,9 +459,13 @@ There are 1M messages waiting in queue to be consumed.
 {0: OffsetPartitionResponse(offset=[1000000], err=0)}
 
 ```
+---
 
 
 ## PART 3. Consuming Kafka Messages and Updating Neo4j
+
+
+### Confluent Consumer
 
 Now we are ready to update our MovieFriends graph.
 
@@ -519,6 +531,10 @@ def confluent_kafka_consume_batch(consumer, batch_size):
 
 ```
 
+
+### Neo4j Bolt Update
+
+
 The `confluent_kafka_consumer_performance()` function is a wrapper for the consumer, which iterates through the required number of batches.  With each iteration, it opens a new Bolt transaction, and passes the batch list as a parameter to the update query.  We UNWIND the list as rows, and then use the indexed ids to efficiently MATCH and MERGE for the cartesian updates.  The Bolt transaction is committed, and the result consumed (and in case you were wondering, the UNWIND list  as a passed parameter is a neat trick from Michael Hunger).
 
 Once all the batches are consumed, the consumer is closed and the throughput computed.
@@ -577,8 +593,6 @@ def confluent_kafka_consumer_performance():
             # Neo4j Graph update loop using Bolt
             try:     
 
-                #session = driver.session()
-
                 batch_list, batch_msg_consumed = confluent_kafka_consume_batch(consumer, batch_size)
                 msg_consumed_count += batch_msg_consumed
 
@@ -612,7 +626,6 @@ def confluent_kafka_consumer_performance():
                     print('*** Not rolling back')
 
             finally:        
-                #session.close()
                 batch_msg_consumed_count = 0
 
 
@@ -627,7 +640,8 @@ def confluent_kafka_consumer_performance():
 
 ```
 
-## Run the Consumer, Update Neo4j
+
+### Run the Consumer
 
 Executing the consumer script updates the graph:
 
@@ -642,7 +656,11 @@ calculate_thoughput(consumer_timings['confluent_kafka_consumer'])
 
 The output shows each batch being processed and returns the Neo4j Bolt driver summary showing the nodes and relationships created for each batch.
 
-On my laptop I can process 150,000 updates in 16 secs, at about 9000 messages per sec.
+I can process 1M updates in 90 secs on my laptop, about 11,000 messages per sec.  
+
+You can test different batch sizes and see how that affects performance.
+
+*Note that in this demo, I'm running all the transactions in the same session to maximize throughput, in production it may safer to open and close a new session with each batch transaction (ie inside the update loop).*
 
 ```
 Assignment: [TopicPartition{topic=neo4j-1M-demo,partition=0,offset=-1001,error=None}]
@@ -666,7 +684,24 @@ Messages consumed: 850000 Batch size: 50000 Nodes created: 50000 Rels created: 5
 Messages consumed: 900000 Batch size: 50000 Nodes created: 50000 Rels created: 50000
 Messages consumed: 950000 Batch size: 50000 Nodes created: 50000 Rels created: 50000
 Messages consumed: 1000000 Batch size: 50000 Nodes created: 50000 Rels created: 50000
-Processed 1000000 messsages in 162.23 seconds
-0.18 MB/s
-6164.23 Msgs/s
+Processed 1000000 messsages in 91.31 seconds
+0.31 MB/s
+10951.72 Msgs/s
 ```
+
+
+## Summary
+
+In this GraphGist, I provided a simple demonstration of how Kafka can be integrated with Neo4j to create a high-throughput, loosely-coupled ETL using Kafka's simple consumer and Neo4j's high-speed Bolt protocol. Neo4j has excellent OLTP capabilities and when coupled with the Kakfa distributed streaming platform, you now have the opportunity to build highly-scalable, real-time graph analytics into your enterprise applications.  
+
+Special thanks to Tim Williamson (Monsanto), Michael Hunger (Neo4j), Michael Kilgore (InfoClear).
+
+For more information about how Neo4j can supercharge your enterprise analytics, contact:
+>
+>Michael Moore
+>
+>Graph Architect & Certified Neoj Professional
+>
+>michael.moore@graphadvantage.com
+>
+>http://www.graphadvantage.com
