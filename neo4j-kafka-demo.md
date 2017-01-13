@@ -4,16 +4,13 @@
 
 ## Introduction
 
-Let's imagine we're a big film studio that's just released an awesome new movie for distribution. We want to ingest the daily box office receipts for 150,000 locations where our movie is being shown.
-
-We have a Neo4j graph that represents the hierarchy of Cinema locations for each of the many distributors we work with.  Each (:Cinema) node has an (:Account) node. We want to update the (:Account) node by attaching a (:DailyBoxOffice) node that stores the daily revenue.
+Let's imagine we're operating a service called MovieFriends that features a social network of 1M users who rent streaming movies.   Our goal is to ingest an update of daily charges for each user.  We have a Neo4j social graph of User nodes, and we want to append a DailyCharge node to each User node.
 
 <img width="888" alt="cinema" src="https://cloud.githubusercontent.com/assets/5991751/21710956/d2642bbe-d3a0-11e6-8706-7d7a145a97a1.png">
 
-
 The conventional way to perform updates would be use LOAD CSV or perhaps pull data from an API.
 
-In this Gist, I'll demonstrate how to use Apache Kafka to stream continuous message updates to our Neo4j Cinema graph using the Bolt driver.
+In this Gist, I'll demonstrate how to use Apache Kafka to stream message updates to our Neo4j Cinema graph using the Bolt driver.
 
 ### Kafka Distributed Streaming Platform
 
@@ -47,7 +44,7 @@ http://activisiongamescience.github.io/2016/06/15/Kafka-Client-Benchmarking/
 I've used the Activision benchmarking script as the framework for this demo -- the main modifications I've made are to generate more realistic messages in the Kafka producer, and integrate the Bolt driver with the Kafka consumer.
 
 
-# Running Kafka on localhost
+# PART 1: Setting up Kafka and Neo4j
 
 The easiest way to get started with Kafka is to follow the directions provided on the Confluent Quickstart for setting up a single instance Kafka server.
 
@@ -139,6 +136,18 @@ https://github.com/Parsely/pykafka
 
 https://github.com/neo4j/neo4j-python-driver
 
+Note on confluent-kafka installation: This has a dependency on librdkafka, and will fail if it can't find it. You can install librdkafka into your python home from source, using the configure command.  
+I use Anaconda:
+
+```
+librdkafka-master $ ./configure --prefix=/Users/michael/anaconda
+librdkafka-master $ make -j
+librdkafka-master $ sudo make install
+librdkafka-master $ pip install confluent-kafka
+
+```
+
+
 ### Step 3. Install Neo4j & APOC dependencies
 
 I'm using Neo4j 3.1 released in Dec 2016.  If you haven't seen this latest version, it's really worth checking out, lots of new enterprise features.  APOC is a huge collection of really useful Neo4j utilities, we'll use some here.
@@ -147,7 +156,7 @@ You can get Neo4j here, get the Enterprise versions.
 
 https://neo4j.com/download/
 
-When you start up Neo4j for the first time, you'll be asked to change your password.
+Open a new terminal window and start Neo4j. You'll be asked to change your password if this is a new install.
 
 ```
 $ ./bin/neo4j start
@@ -156,7 +165,7 @@ Started neo4j (pid 69178). By default, it is available at http://localhost:7474/
 There may be a short delay until the server is ready.
 
 ```
-
+For this demo I'm using the default "neo4j" password.
 You can put in a dummy password "test" and then set it back to the default password "neo4j".
 Use this command in the Neo4j browser to get the password prompts:
 
@@ -185,57 +194,45 @@ There may be a short delay until the server is ready.
 
 ```
 
-# Let's do this!
+# PART 2:  CREATING DATA
 
-Let's start by making the Cinema graph. You'll need to start with a new, blank Neo4j database.
+Let's start by making the MovieFriends graph. You'll need to start with a new, blank Neo4j database.
 
 To achieve good performance, we'll set constraints and indexes on all id fields we'll use for matching update records.
 
 ```
-# Make sure apoc procedures are installed in Neo4j plugins folder
+#make sure apoc procedures are installed in Neo4j plugins folder
 
 from neo4j.v1 import GraphDatabase, basic_auth, TRUST_ON_FIRST_USE, CypherError
 from string import Template
 
 
-nodes = 150000
+nodes = 1000000
 
-nodes_per_graph = 5000
+nodes_per_graph = 10000
 
 graphs = int(nodes/nodes_per_graph)
 
 query0 = 'MATCH (n) DETACH DELETE n'
 
 
-query1 = Template('CALL apoc.generate.ba( ${nodes_per_graph}, 1, "Cinema", "HAS_LOCATION") '
+query1 = Template('CALL apoc.generate.ba( ${nodes_per_graph}, 1, "User", "KNOWS") '
 ).substitute(locals())
 
 
 query2 = '''
-MATCH (c:Cinema) SET c.cinemaId = id(c)+1000000
+MATCH (n:User) SET n.userId = id(n)+1000000
 ;
 '''
 query3 = '''
-CREATE CONSTRAINT ON (c:Cinema) ASSERT c.cinemaId IS UNIQUE
-;
-'''
-query4 = '''
-CREATE CONSTRAINT ON (a:Account) ASSERT a.accountId IS UNIQUE
+CREATE CONSTRAINT ON (n:User) ASSERT n.userId IS UNIQUE
 ;
 '''
 
-query5 = '''
-CREATE INDEX on :DailyBoxOffice(accountId)
+query4 = '''
+CREATE INDEX on :DailyCharge(userId)
 ;    
 '''
-
-query6 = '''
-MATCH (c:Cinema)
-WHERE NOT EXISTS ( (c)-[:HAS_ACCOUNT]->() )
-CREATE (a:Account)<-[:HAS_ACCOUNT]-(c) SET a.accountId = c.cinemaId
-;
-'''
-
 
 driver = GraphDatabase.driver("bolt://localhost",
                           auth=basic_auth("neo4j", "neo4j"),
@@ -274,18 +271,6 @@ try:
     print(summary.counters)
     session.close()
 
-    session = driver.session()
-    result = session.run(query5)
-    summary = result.consume()
-    print(summary.counters)
-    session.close()
-
-    session = driver.session()
-    result = session.run(query6)
-    summary = result.consume()
-    print(summary.counters)
-    session.close()
-
 
 except Exception as e:
 
@@ -298,17 +283,16 @@ except Exception as e:
 
 finally:        
      print('*** Done!')
+
 ```
 
 You should see this output:
 
 ```
 {}
-{'properties_set': 150000}
-{'constraints_added': 1}
+{'properties_set': 1000000}
 {'constraints_added': 1}
 {'indexes_added': 1}
-{'relationships_created': 150000, 'nodes_created': 150000, 'labels_added': 150000, 'properties_set': 150000}
 *** Done!
 
 ```
@@ -319,7 +303,7 @@ Now that we've built the graph, let's update it.  The first task is to generate 
 
 This first script initializes some of the global variables used by both the producer and consumer and also sets the format of our messages.  To keep things simple, we'll just have our message be a comma-delimited string with accountId, a revenue number, and a timestamp.
 
-We are also declaring our Kafka topic name and the total number of messages (150,000). Note that if you re-run the producer it will append messages to the existing topic each time.  If you want a new group of 150,000 messages, you'll need a new topic name.
+We are also declaring our Kafka topic name and the total number of messages. Note that if you re-run the producer it will append messages to the existing topic each time.  If you want a new group of 1M messages, you'll need a new topic name.
 
 A timer wrapper is included so you can see the throughput.
 
@@ -331,9 +315,9 @@ import time
 # connect to Kafka
 bootstrap_servers = 'localhost:9092' # change if your brokers live else where
 
-kafka_topic = 'neo4j-150K-demo'
+kafka_topic = 'neo4j-1M-demo'
 
-msg_count = 150000
+msg_count = 1000000
 
 # this is the total number of messages that will be generated
 
@@ -344,7 +328,7 @@ msg_count = 150000
 
 i=0
 def generate_message(i):
-    msg_payload = (str(i+1000000) + ',' + str(random.randrange(100000,1000000)/100) + ',' + str(time.time())).encode()
+    msg_payload = (str(i+1000000) + ',' + str(random.randrange(0,5000)/100) + ',' + str(time.time())).encode()
     return(msg_payload)
 
 example_message = generate_message(i)
@@ -376,8 +360,9 @@ def calculate_thoughput(timing, n_messages=msg_count, msg_size=msg_bytes):
 Executing this script yields an example message:
 
 ```
-Example message: b'1000000,9611.06,1483655125.567612'
-Message size (bytes): 33
+Example message: b'1000000,5.84,1484261697.689981'
+Message size (bytes): 30
+
 ```
 
 ## Kafka Message Producer using Confluent_Kafka Client
@@ -438,9 +423,9 @@ Kafka is fast, even on my laptop....
 
 ```
 BufferErrors: 0
-Processed 150000 messsages in 1.56 seconds
-3.03 MB/s
-96150.94 Msgs/s
+Processed 1000000 messsages in 10.08 seconds
+2.84 MB/s
+99196.86 Msgs/s
 
 ```
 
@@ -458,23 +443,23 @@ print(topic.latest_available_offsets())
 
 ```
 
-We can see that the messages start at offset 0 and go to offset 150,000.
-There are 150,000 messages waiting in queue to be consumed.
+We can see that the messages start at offset 0 and go to offset 1,000,000.
+There are 1M messages waiting in queue to be consumed.
 
 ```
 {0: OffsetPartitionResponse(offset=[0], err=0)}
-{0: OffsetPartitionResponse(offset=[150000], err=0)}
+{0: OffsetPartitionResponse(offset=[1000000], err=0)}
 
 ```
 
 
-## Kafka Message Consumer using Confluent_Kafka and Neo4j BOLT Protocol
+## PART 3. Consuming Kafka Messages and Updating Neo4j
 
-Now we are ready to update our Cinema graph.
+Now we are ready to update our MovieFriends graph.
 
 We'll start as before, by defining the consumer, however we're going to make a few optimizations for Neo4j.
 
-The Confluent-Kafka client consumer.poll() function polls one message at at time, so we could generate a single update for each message, but that's a lot of unnecessary I/O for Bolt.  Alternatively, we could try to jam all 150,000 messages into Neo4j but this could create memory issues and a long-running query.  Instead, we'll poll the messages in configurable batches, and send the batch to Neo4j in a parameterized query.
+The Confluent-Kafka client consumer.poll() function polls one message at at time, so we could generate a single update for each message, but that's a lot of unnecessary I/O for Bolt.  Alternatively, we could try to jam all 1M messages into Neo4j but this could create memory issues and a long-running query. A better approach is to poll the messages in batches, and then send each batch to Neo4j as a list in a parameterized query.
 
 The `confluent_kafka_consume_batch(consumer, batch_size)` function polls and formats a list of messages for Neo4j, per the specified batch size.
 
@@ -534,17 +519,16 @@ def confluent_kafka_consume_batch(consumer, batch_size):
 
 ```
 
-The `confluent_kafka_consumer_performance()` function is just a wrapper for the consumer, which iterates through the required number of batches, and with each iteration opens a new Bolt session and transaction, and passes the batch list as a parameter to the update query.  We UNWIND the list as rows, and then use the indexed ids to efficiently MATCH and MERGE for the cartesian updates.  The Bolt transaction is committed, and the result consumed (and in case you were wondering, the UNWIND list  as a passed parameter is a neat trick from Michael Hunger).
+The `confluent_kafka_consumer_performance()` function is a wrapper for the consumer, which iterates through the required number of batches.  With each iteration, it opens a new Bolt transaction, and passes the batch list as a parameter to the update query.  We UNWIND the list as rows, and then use the indexed ids to efficiently MATCH and MERGE for the cartesian updates.  The Bolt transaction is committed, and the result consumed (and in case you were wondering, the UNWIND list  as a passed parameter is a neat trick from Michael Hunger).
 
 Once all the batches are consumed, the consumer is closed and the throughput computed.
 
 ```
-
 def confluent_kafka_consumer_performance():
 
     topic = kafka_topic
     msg_consumed_count = 0
-    batch_size = 10000
+    batch_size = 50000
     batch_list = []
     nodes = 0
     rels = 0
@@ -558,10 +542,10 @@ def confluent_kafka_consumer_performance():
     update_query = '''
     WITH  {batch_list} AS batch_list
     UNWIND batch_list AS rows
-    WITH rows, toInteger(rows[0]) AS acctid
-    MATCH (a:Account {accountId: acctid})
-    MERGE (a)-[r:HAS_DAILY_REVENUE]->(n:DailyBoxOffice {accountId: toInteger(rows[0])})
-    ON CREATE SET n.revenueUSD = toFloat(rows[1]), n.createdDate = toFloat(rows[2])
+    WITH rows, toInteger(rows[0]) AS userid
+    MATCH (u:User {userId: userid})
+    MERGE (u)-[r:HAS_DAILY_CHARGE]->(n:DailyCharge {userId: toInteger(rows[0])})
+    ON CREATE SET n.amountUSD = toFloat(rows[1]), n.createdDate = toFloat(rows[2])
     '''
 
     conf = {'bootstrap.servers': bootstrap_servers,
@@ -586,12 +570,14 @@ def confluent_kafka_consumer_performance():
     # consumer loop
     try:
 
+        session = driver.session()
+
         while True:
 
             # Neo4j Graph update loop using Bolt
             try:     
 
-                session = driver.session()
+                #session = driver.session()
 
                 batch_list, batch_msg_consumed = confluent_kafka_consume_batch(consumer, batch_size)
                 msg_consumed_count += batch_msg_consumed
@@ -600,9 +586,6 @@ def confluent_kafka_consumer_performance():
                 # df = pd.DataFrame(batch_list)
                 # filename='test_' + str(msg_consumed_count) + '.csv'
                 # df.to_csv(path_or_buf= filename)
-
-                # using the Bolt implicit transaction
-                #result = session.run(update_query, {"batch_list": batch_list})
 
                 # using the Bolt explicit transaction, recommended for writes
                 with session.begin_transaction() as tx:
@@ -629,7 +612,7 @@ def confluent_kafka_consumer_performance():
                     print('*** Not rolling back')
 
             finally:        
-                session.close()
+                #session.close()
                 batch_msg_consumed_count = 0
 
 
@@ -637,9 +620,11 @@ def confluent_kafka_consumer_performance():
             sys.stderr.write('%% Aborted by user\n')
 
     finally:
+        session.close()
         consumer_timing = time.time() - consumer_start
         consumer.close()    
         return consumer_timing
+
 ```
 
 ## Run the Consumer, Update Neo4j
@@ -660,23 +645,28 @@ The output shows each batch being processed and returns the Neo4j Bolt driver su
 On my laptop I can process 150,000 updates in 16 secs, at about 9000 messages per sec.
 
 ```
-Assignment: [TopicPartition{topic=neo4j-150K-demo2,partition=0,offset=-1001,error=None}]
-Messages consumed: 10000 Batch size: 10000 Nodes created: 10000 Rels created: 10000
-Messages consumed: 20000 Batch size: 10000 Nodes created: 10000 Rels created: 10000
-Messages consumed: 30000 Batch size: 10000 Nodes created: 10000 Rels created: 10000
-Messages consumed: 40000 Batch size: 10000 Nodes created: 10000 Rels created: 10000
-Messages consumed: 50000 Batch size: 10000 Nodes created: 10000 Rels created: 10000
-Messages consumed: 60000 Batch size: 10000 Nodes created: 10000 Rels created: 10000
-Messages consumed: 70000 Batch size: 10000 Nodes created: 10000 Rels created: 10000
-Messages consumed: 80000 Batch size: 10000 Nodes created: 10000 Rels created: 10000
-Messages consumed: 90000 Batch size: 10000 Nodes created: 10000 Rels created: 10000
-Messages consumed: 100000 Batch size: 10000 Nodes created: 10000 Rels created: 10000
-Messages consumed: 110000 Batch size: 10000 Nodes created: 10000 Rels created: 10000
-Messages consumed: 120000 Batch size: 10000 Nodes created: 10000 Rels created: 10000
-Messages consumed: 130000 Batch size: 10000 Nodes created: 10000 Rels created: 10000
-Messages consumed: 140000 Batch size: 10000 Nodes created: 10000 Rels created: 10000
-Messages consumed: 150000 Batch size: 10000 Nodes created: 10000 Rels created: 10000
-Processed 150000 messsages in 16.80 seconds
-0.28 MB/s
-8925.97 Msgs/s
+Assignment: [TopicPartition{topic=neo4j-1M-demo,partition=0,offset=-1001,error=None}]
+Messages consumed: 50000 Batch size: 50000 Nodes created: 50000 Rels created: 50000
+Messages consumed: 100000 Batch size: 50000 Nodes created: 50000 Rels created: 50000
+Messages consumed: 150000 Batch size: 50000 Nodes created: 50000 Rels created: 50000
+Messages consumed: 200000 Batch size: 50000 Nodes created: 50000 Rels created: 50000
+Messages consumed: 250000 Batch size: 50000 Nodes created: 50000 Rels created: 50000
+Messages consumed: 300000 Batch size: 50000 Nodes created: 50000 Rels created: 50000
+Messages consumed: 350000 Batch size: 50000 Nodes created: 50000 Rels created: 50000
+Messages consumed: 400000 Batch size: 50000 Nodes created: 50000 Rels created: 50000
+Messages consumed: 450000 Batch size: 50000 Nodes created: 50000 Rels created: 50000
+Messages consumed: 500000 Batch size: 50000 Nodes created: 50000 Rels created: 50000
+Messages consumed: 550000 Batch size: 50000 Nodes created: 50000 Rels created: 50000
+Messages consumed: 600000 Batch size: 50000 Nodes created: 50000 Rels created: 50000
+Messages consumed: 650000 Batch size: 50000 Nodes created: 50000 Rels created: 50000
+Messages consumed: 700000 Batch size: 50000 Nodes created: 50000 Rels created: 50000
+Messages consumed: 750000 Batch size: 50000 Nodes created: 50000 Rels created: 50000
+Messages consumed: 800000 Batch size: 50000 Nodes created: 50000 Rels created: 50000
+Messages consumed: 850000 Batch size: 50000 Nodes created: 50000 Rels created: 50000
+Messages consumed: 900000 Batch size: 50000 Nodes created: 50000 Rels created: 50000
+Messages consumed: 950000 Batch size: 50000 Nodes created: 50000 Rels created: 50000
+Messages consumed: 1000000 Batch size: 50000 Nodes created: 50000 Rels created: 50000
+Processed 1000000 messsages in 162.23 seconds
+0.18 MB/s
+6164.23 Msgs/s
 ```

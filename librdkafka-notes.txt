@@ -1,0 +1,39 @@
+$ librdkafka-master ecoreefsmpg$ ./configure --prefix=/Users/ecoreefsmpg/anaconda
+...
+Generated config.cache
+
+Now type 'make' to build
+$ librdkafka-master ecoreefsmpg$ make -j
+...
+Updating
+Checking  integrity
+CONFIGURATION.md               OK
+examples/rdkafka_example       OK
+examples/rdkafka_performance   OK
+examples/rdkafka_example_cpp   OK
+Checking librdkafka integrity
+librdkafka.1.dylib             OK
+librdkafka.a                   OK
+Symbol visibility              OK
+Checking librdkafka++ integrity
+librdkafka++.1.dylib           OK
+librdkafka++.a                 OK
+
+
+$ librdkafka-master ecoreefsmpg$ sudo make install
+...
+Install librdkafka to /Users/ecoreefsmpg/anaconda
+
+ecoreefsmpg:librdkafka-master ecoreefsmpg$ pip install confluent-kafka
+Collecting confluent-kafka
+  Using cached confluent-kafka-0.9.2.tar.gz
+Building wheels for collected packages: confluent-kafka
+  Running setup.py bdist_wheel for confluent-kafka ... done
+  Stored in directory: /Users/ecoreefsmpg/Library/Caches/pip/wheels/64/a6/32/279a2c7dad0f4774a62d6b5761bb2855cdaa3ee48bfdf89356
+Successfully built confluent-kafka
+Installing collected packages: confluent-kafka
+Successfully installed confluent-kafka-0.9.2
+
+
+ecoreefsmpg:librdkafka-master ecoreefsmpg$ pip install pykafka
+ecoreefsmpg:librdkafka-master ecoreefsmpg$
