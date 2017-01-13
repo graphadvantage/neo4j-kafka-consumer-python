@@ -19,7 +19,8 @@ Kafka was originally developed at LinkedIn, and is becoming widely adopted becau
 
 [Using Kafka](https://techbeacon.com/what-apache-kafka-why-it-so-popular-should-you-use-it), LinkedIn has ingested over a trillion messages per day, while Netflix reports ingesting over 500B messages per day on AWS.
 
-<img width="888" alt="netflix" src = "https://cloud.githubusercontent.com/assets/5991751/21710643/f24c3cac-d39e-11e6-8372-5b9cefb596e5.png">
+<img width="888" alt="netflix" src =
+"https://cloud.githubusercontent.com/assets/5991751/21917264/806aebe4-d8fb-11e6-8c95-99105a429b7f.png">
 
 The core of Kafka is the message log, which is essentially a time-dependent data table.  Messages are identified only by their offset in the log, and the log represents a running record of events published by source systems. Applications can subscribe to message streams, allowing for loosely coupled, flexible architectures.
 
@@ -138,7 +139,7 @@ $ pip install neo4j-driver
 
 ```
 
-*Note on confluent-kafka: This has a dependency on librdkafka, and will complaing if it can't find it. You can install librdkafka into your python home from source, using the configure command.  
+*Note on confluent-kafka: This has a dependency on librdkafka, and will complain if it can't find it. You can install librdkafka into your python home from source, using the configure command.  
 (I use Anaconda python, so I put it there)*
 
 ```
@@ -308,7 +309,7 @@ You should see this output:
 
 Now that we've built the graph, let's update it.  The first task is to generate the messages we'll need (pretending that these have been extracted from various source systems as noted above).
 
-This first script initializes some of the global variables used by both the producer and consumer and also sets the format of our messages.  To keep things simple, we'll just have our message be a comma-delimited string with accountId, a revenue number, and a timestamp.
+This first script initializes some of the global variables used by both the producer and consumer and also sets the format of our messages.  To keep things simple, we'll just have our message be a comma-delimited string with a userId, an amount, and a timestamp.
 
 We are also declaring our Kafka topic name and the total number of messages. Note that if you re-run the producer it will append messages to the existing topic each time.  If you want a new group of 1M messages, you'll need a new topic name.
 
@@ -330,7 +331,7 @@ msg_count = 1000000
 
 # function to generate messages that will be the data for the graph update
 
-# an example message is displayed : accountId, revenue, timestamp
+# an example message is displayed : userId, amount, timestamp
 # this simulates data from the source database
 
 i=0
@@ -700,7 +701,7 @@ For more information about how Neo4j can supercharge your enterprise analytics, 
 >
 >Michael Moore
 >
->Graph Architect & Certified Neoj Professional
+>Graph Architect & Certified Neo4j Professional
 >
 >michael.moore@graphadvantage.com
 >
